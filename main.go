@@ -12,6 +12,8 @@ func main() {
 	cmdAddr := flag.String("cmd-address", "", "address to SSH into")
 	psAddr := flag.String("ps-address", "", "address to SSH into")
 	keyFile := flag.String("key-file", "", "location of SSH key")
+	setPSShell := flag.Bool("set-ps", false, "if true, the VM specified by ps-address will be configured"+
+		"to have powershell as the default shell, before any other commands are ran")
 	flag.Parse()
 	key, err := ioutil.ReadFile(*keyFile)
 	if err != nil {
@@ -55,6 +57,14 @@ func main() {
 			cmd:  `powershell.exe -NonInteractive -ExecutionPolicy Bypass -Command "if( Test-Path -Path / ){echo foo}"`,
 		},
 		{
+			name: "-Command parameter with script block",
+			cmd:  `powershell.exe -NonInteractive -ExecutionPolicy Bypass -Command {if( Test-Path -Path / ){echo foo}}`,
+		},
+		{
+			name: "-Command parameter with quoted script block",
+			cmd:  `powershell.exe -NonInteractive -ExecutionPolicy Bypass -Command "{if( Test-Path -Path / ){echo foo}}"`,
+		},
+		{
 			name: "-Command parameter with escaped double quotes",
 			cmd:  `powershell.exe -NonInteractive -ExecutionPolicy Bypass -Command \"if( Test-Path -Path / ){echo foo}\"`,
 		},
@@ -66,6 +76,30 @@ func main() {
 			name: "-Command parameter with escaped single quotes",
 			cmd:  `powershell.exe -NonInteractive -ExecutionPolicy Bypass -Command \'if( Test-Path -Path / ){echo foo}\'`,
 		},
+		//{
+		//	name: "Running CMD commands, with double quotes - cmd passes",
+		//	cmd:  `sc.exe create hybrid-overlay-node binPath="C:\\k\\hybrid-overlay-node.exe --node winhost --hybrid-overlay-vxlan-port=9898 --k8s-kubeconfig c:\\k\\kubeconfig --windows-service --logfile C:\\var\\log\\hybrid-overlay\\hybrid-overlay.log" start=auto depend=kubelet`,
+		//},
+		//{
+		//	name: "Running CMD commands, with single quotes - ps passes",
+		//	cmd:  `sc.exe create hybrid-overlay-node binPath='C:\\k\\hybrid-overlay-node.exe --node winhost --hybrid-overlay-vxlan-port=9898 --k8s-kubeconfig c:\\k\\kubeconfig --windows-service --logfile C:\\var\\log\\hybrid-overlay\\hybrid-overlay.log' start=auto depend=kubelet`,
+		//},
+		//{
+		//	name: "Running CMD commands with cmd/c, with double quotes - cmd passes",
+		//	cmd:  `cmd /c sc.exe create hybrid-overlay-node binPath="C:\\k\\hybrid-overlay-node.exe --node winhost --hybrid-overlay-vxlan-port=9898 --k8s-kubeconfig c:\\k\\kubeconfig --windows-service --logfile C:\\var\\log\\hybrid-overlay\\hybrid-overlay.log" start=auto depend=kubelet`,
+		//},
+		//{
+		//	name: "Running CMD commands with cmd /c, with single quotes - ps passes",
+		//	cmd:  `cmd /c sc.exe create hybrid-overlay-node binPath='C:\\k\\hybrid-overlay-node.exe --node winhost --hybrid-overlay-vxlan-port=9898 --k8s-kubeconfig c:\\k\\kubeconfig --windows-service --logfile C:\\var\\log\\hybrid-overlay\\hybrid-overlay.log' start=auto depend=kubelet`,
+		//},
+	}
+	if *setPSShell {
+		setPSCMD := `powershell.exe -NonInteractive -ExecutionPolicy Bypass New-ItemProperty -Path "HKLM:\SOFTWARE\OpenSSH" -Name DefaultShell -Value "C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe" -PropertyType String -Force`
+		out, err := runCommandAgainst(*psAddr, setPSCMD, sshConfig)
+		if err != nil {
+			fmt.Printf("error setting PS default shell: %s %s", out, err)
+			os.Exit(1)
+		}
 	}
 	for i, cmdCase := range commands {
 		fmt.Printf("\n---- Case %d:\n", i)
